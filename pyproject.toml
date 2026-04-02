@@ -1,0 +1,12 @@
+[project]
+name = "pickup-hoops"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.104.0",
+    "pytest>=9.0.2",
+    "sqlmodel>=0.0.14",
+    "websockets<14",
+]
