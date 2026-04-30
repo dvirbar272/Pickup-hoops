@@ -145,3 +145,46 @@ def test_duplicate_player_registration_is_rejected(client: TestClient):
     duplicate_registration = client.post(f"/games/{game_id}/players/{player_id}")
     assert duplicate_registration.status_code == 400
     assert duplicate_registration.json()["detail"] == "Player is already registered for this game"
+
+
+def test_list_games_includes_registered_players(client: TestClient):
+    court_response = client.post(
+        "/courts/",
+        json={
+            "name": "Harbor Court",
+            "address": "100 Bay St",
+            "city": "Miami",
+            "num_courts": 1,
+            "has_lighting": True,
+        },
+    )
+    court_id = court_response.json()["id"]
+
+    player_response = client.post(
+        "/players/",
+        json={"name": "Taylor", "city": "Miami", "skill_level": "intermediate"},
+    )
+    player_id = player_response.json()["id"]
+
+    game_response = client.post(
+        "/games/",
+        json={
+            "scheduled_time": "2026-05-03T19:30:00",
+            "court_id": court_id,
+            "skill_level": "intermediate",
+            "max_players": 10,
+            "status": "open",
+        },
+    )
+    game_id = game_response.json()["id"]
+
+    register_response = client.post(f"/games/{game_id}/players/{player_id}")
+    assert register_response.status_code == 200
+
+    games_response = client.get("/games/")
+    assert games_response.status_code == 200
+    games = games_response.json()
+
+    game = next(g for g in games if g["id"] == game_id)
+    assert len(game["players"]) == 1
+    assert game["players"][0]["id"] == player_id

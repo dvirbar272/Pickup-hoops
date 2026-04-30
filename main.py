@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from typing import List
 from fastapi import FastAPI, HTTPException, Depends
 from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
 
 from database import create_db_and_tables, get_session
 from models import (
@@ -13,6 +14,7 @@ from models import (
     PlayerUpdate,
     Game,
     GameCreate,
+    GameRead,
     GameUpdate,
 )
 
@@ -84,11 +86,16 @@ def delete_court(court_id: int, session: Session = Depends(get_session)):
     db_court = session.get(Court, court_id)
     if not db_court:
         raise HTTPException(status_code=404, detail="Court not found")
-    
+
+    if len(db_court.games) > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot delete court with active games. Delete the games first."
+        )
+
     session.delete(db_court)
     session.commit()
     return {"ok": True}
-
 
 # ============== PLAYER CRUD ROUTES ==============
 @app.post("/players/", response_model=Player)
@@ -162,19 +169,28 @@ def create_game(game: GameCreate, session: Session = Depends(get_session)):
     return db_game
 
 
-@app.get("/games/", response_model=List[Game])
+@app.get("/games/", response_model=List[GameRead])
 def list_games(
     skip: int = 0, limit: int = 10, session: Session = Depends(get_session)
 ):
     """List games with pagination."""
-    games = session.exec(select(Game).offset(skip).limit(limit)).all()
+    games = session.exec(
+        select(Game)
+        .options(selectinload(Game.players))
+        .offset(skip)
+        .limit(limit)
+    ).all()
     return games
 
 
-@app.get("/games/{game_id}", response_model=Game)
+@app.get("/games/{game_id}", response_model=GameRead)
 def get_game(game_id: int, session: Session = Depends(get_session)):
     """Get a specific game by ID."""
-    game = session.get(Game, game_id)
+    game = session.exec(
+        select(Game)
+        .where(Game.id == game_id)
+        .options(selectinload(Game.players))
+    ).first()
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     return game
@@ -206,12 +222,15 @@ def delete_game(game_id: int, session: Session = Depends(get_session)):
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
 
+    db_game.players = []
+    session.add(db_game)
+
     session.delete(db_game)
     session.commit()
     return {"ok": True}
 
 
-@app.post("/games/{game_id}/players/{player_id}", response_model=Game)
+@app.post("/games/{game_id}/players/{player_id}", response_model=GameRead)
 def add_player_to_game(
     game_id: int, player_id: int, session: Session = Depends(get_session)
 ):
@@ -234,5 +253,9 @@ def add_player_to_game(
 
     session.add(game)
     session.commit()
-    session.refresh(game)
-    return game
+    refreshed_game = session.exec(
+        select(Game)
+        .where(Game.id == game_id)
+        .options(selectinload(Game.players))
+    ).first()
+    return refreshed_game

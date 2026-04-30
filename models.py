@@ -78,6 +78,13 @@ class PlayerUpdate(SQLModel):
     skill_level: Optional[SkillLevel] = None
 
 
+class PlayerRead(SQLModel):
+    id: int
+    name: str
+    city: str
+    skill_level: SkillLevel
+
+
 class Game(SQLModel, table=True):
     """Represents a pick-up basketball game."""
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -109,5 +116,15 @@ class GameUpdate(SQLModel):
     skill_level: Optional[SkillLevel] = None
     max_players: Optional[int] = None
     status: Optional[GameStatus] = None
+
+
+class GameRead(SQLModel):
+    id: int
+    scheduled_time: datetime
+    court_id: int
+    skill_level: SkillLevel
+    max_players: int
+    status: GameStatus
+    players: List[PlayerRead] = []
 
 
